@@ -25,7 +25,8 @@ from matplotlib import pyplot as plt
 import sklearn.metrics
 import sklearn.neighbors
 import scipy.stats
-from . import losses
+# from . import losses
+import losses
 
 class Judge():
     """

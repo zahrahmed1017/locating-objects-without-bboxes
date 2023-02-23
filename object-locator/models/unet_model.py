@@ -48,8 +48,9 @@ class UNet(nn.Module):
         self.ultrasmall = ultrasmall
         self.device = device
 
-        # With this network depth, there is a minimum image size
-        if height < 256 or width < 256:
+        # With this network depth, there is a minimum image size. 
+        # If using ultrasmall network, minimum image size is 64.
+        if not self.ultrasmall and height < 256 or width < 256:
             raise ValueError('Minimum input image size is 256x256, got {}x{}'.\
                              format(height, width))
 

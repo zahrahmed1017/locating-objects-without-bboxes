@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[
+                "--train-dir", "/Users/Zahra1/Documents/Stanford/Research/datasets/SEDC/64x64/images_train_64", 
+                "--batch-size", "32", 
+                "--visdom-server","http://localhost",
+                "--visdom-port", "8097",
+                "--visdom-env", "mytrainingsession", 
+                "--val-dir", "/Users/Zahra1/Documents/Stanford/Research/datasets/SEDC/64x64/images_val_64",
+                "--optim", "Adam", 
+                "--save", "saved_model.ckpt"],
+            "purpose": ["debug-in-terminal"]
+        }
+    ]
+}

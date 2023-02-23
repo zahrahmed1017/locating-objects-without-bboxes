@@ -20,7 +20,8 @@ import numpy as np
 import sklearn.mixture
 import scipy.stats
 import cv2
-from . import bmm
+# from . import bmm
+import bmm
 from matplotlib import pyplot as plt
 import matplotlib.cm
 import scipy.stats

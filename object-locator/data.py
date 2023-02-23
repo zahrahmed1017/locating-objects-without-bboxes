@@ -25,7 +25,8 @@ import torch
 import torchvision
 from ballpark import ballpark
 
-from . import get_image_size
+# from . import get_image_size
+import get_image_size
 
 IMG_EXTENSIONS = ['.png', '.jpeg', '.jpg', '.tiff', '.tif']
 

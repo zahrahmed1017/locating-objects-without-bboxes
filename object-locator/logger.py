@@ -18,7 +18,8 @@ __version__ = "1.6.0"
 import visdom
 import torch
 import numbers
-from . import utils
+# from . import utils
+import utils
 
 from torch.autograd import Variable
 
@@ -51,9 +52,10 @@ class Logger():
                   'or intermediate image')
         else:
             # Connect to Visdom
-            self.client = visdom.Visdom(server=server,
-                                        env=env_name,
-                                        port=port)
+            # self.client = visdom.Visdom(server=server,
+            #                             env=env_name,
+            #                             port=port)
+            self.client = visdom.Visdom()
             if self.client.check_connection():
                 print(f'Connected to Visdom server '
                       f'{server}:{port}')

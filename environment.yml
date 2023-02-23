@@ -1,7 +1,7 @@
 name: object-locator
 channels:
-    - pytorch
     - conda-forge
+    - pytorch
     - defaults
 dependencies:
     - imageio=2.3.0
