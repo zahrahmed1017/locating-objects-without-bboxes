@@ -70,7 +70,7 @@ def parse_command_args(training_or_testing):
                                    metavar='N',
                                    help="Number of epochs to train.")
         optional_args.add_argument('--nThreads', '-j',
-                                   default=0,
+                                   default=4,
                                    type=strictly_positive_int,
                                    metavar='N',
                                    help="Number of threads to create "
@@ -140,7 +140,7 @@ def parse_command_args(training_or_testing):
                                    help="Only use the first N images "
                                         "of the validation dataset.")
         optional_args.add_argument('--val-freq',
-                                   default=1,
+                                   default=10,
                                    type=int,
                                    metavar='F',
                                    help="Run validation every F epochs. "
@@ -205,7 +205,7 @@ def parse_command_args(training_or_testing):
                                         "(e.g, just one pupil), then set it. "
                                         "Otherwise it will be estimated.")
         optional_args.add_argument('--ultrasmallnet',
-                                   default=False,
+                                   default=True,
                                    action="store_true",
                                    help="If True, the 5 central layers are removed,"
                                          "resulting in a much smaller UNet. "

@@ -78,7 +78,7 @@ device = torch.device('cuda') if args.cuda else device_cpu
 if args.save:
     os.makedirs(os.path.split(args.save)[0], exist_ok=True)
 
-# Set seeds
+# Set seeds (random initial numbers for network parameters)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if args.cuda:

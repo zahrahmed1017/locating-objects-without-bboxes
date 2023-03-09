@@ -12,14 +12,16 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args":[
-                "--train-dir", "/Users/Zahra1/Documents/Stanford/Research/datasets/SEDC/64x64/images_train_64", 
-                "--batch-size", "32", 
+                "--train-dir", "/home/zahraahmed/Documents/64x64/images_train_64", 
+                "--batch-size", "16", 
+                "--imgsize", "64x64",
                 "--visdom-server","http://localhost",
                 "--visdom-port", "8097",
                 "--visdom-env", "mytrainingsession", 
-                "--val-dir", "/Users/Zahra1/Documents/Stanford/Research/datasets/SEDC/64x64/images_val_64",
+                "--val-dir", "/home/zahraahmed/Documents/64x64/images_val_64",
                 "--optim", "Adam", 
-                "--save", "saved_model.ckpt"],
+                "--epochs","200",
+                "--save", "saved_model_4.ckpt"],
             "purpose": ["debug-in-terminal"]
         }
     ]
