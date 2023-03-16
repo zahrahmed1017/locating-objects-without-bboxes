@@ -40,6 +40,7 @@ matplotlib.use('Agg')
 import skimage.transform
 from peterpy import peter
 from ballpark import ballpark
+from collections import OrderedDict
 
 # from . import losses
 # from .models import unet_model
@@ -143,17 +144,23 @@ if args.resume:
     with peter('Loading checkpoint'):
         if os.path.isfile(args.resume):
             checkpoint = torch.load(args.resume)
-            start_epoch = checkpoint['epoch']
-            try:
-                lowest_mahd = checkpoint['mahd']
-            except KeyError:
-                lowest_mahd = np.infty
-                print('W: Loaded checkpoint has not been validated. ', end='')
-            model.load_state_dict(checkpoint['model'])
+            # start_epoch = checkpoint['epoch']
+            # try:
+            #     lowest_mahd = checkpoint['mahd']
+            # except KeyError:
+            #     lowest_mahd = np.infty
+            #     print('W: Loaded checkpoint has not been validated. ', end='')
+            state_dict = OrderedDict()
+            for k, v in checkpoint['model'].items():
+                name = k[7:]
+                state_dict[name] = v
+            model.load_state_dict(state_dict)
+            # model.load_state_dict(checkpoint['model'])
+            
             if not args.replace_optimizer:
                 optimizer.load_state_dict(checkpoint['optimizer'])
-            print(f"\n\__ loaded checkpoint '{args.resume}'"
-                  f"(now on epoch {checkpoint['epoch']})")
+            print(f"\n\__ loaded checkpoint '{args.resume}'")
+                #   f"(now on epoch {checkpoint['epoch']})")
         else:
             print(f"\n\__ E: no checkpoint found at '{args.resume}'")
             exit(-1)

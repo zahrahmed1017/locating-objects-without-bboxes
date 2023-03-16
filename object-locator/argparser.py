@@ -193,7 +193,7 @@ def parse_command_args(training_or_testing):
                                         "This maskes it run much slower!")
         optional_args.add_argument('--radius',
                                    type=strictly_positive,
-                                   default=5,
+                                   default=3,
                                    metavar='R',
                                    help="Detections at dist <= R to a GT point"
                                         "are considered True Positives.")
@@ -361,7 +361,8 @@ def parse_command_args(training_or_testing):
         if isinstance(args.radii, (list, range)):
             pass
         elif isinstance(args.radii, str) and ',' in args.radii:
-            args.radii = [int(r) for r in args.radii.replace('[', '').replace(']', '').split(',')]
+            # args.radii = [int(r) for r in args.radii.replace('[', '').replace(']', '').split(',')]
+            args.radii = [float(r) for r in args.radii.replace('[', '').replace(']', '').split(',')]
         else:
             args.radii = [int(args.radii)]
 

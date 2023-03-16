@@ -105,3 +105,9 @@ venv.bak/
 
 # vim
 *.swp
+
+# configuration files
+*.ckpt
+
+# Don't save ouputs
+Runs/

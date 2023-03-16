@@ -46,15 +46,25 @@ import skimage.transform
 from peterpy import peter
 from ballpark import ballpark
 
-from .data import csv_collator
-from .data import ScaleImageAndLabel
-from .data import build_dataset
-from . import losses
-from . import argparser
-from .models import unet_model
-from .metrics import Judge
-from .metrics import make_metric_plots
-from . import utils
+# from .data import csv_collator
+# from .data import ScaleImageAndLabel
+# from .data import build_dataset
+# from . import losses
+# from . import argparser
+# from .models import unet_model
+# from .metrics import Judge
+# from .metrics import make_metric_plots
+# from . import utils
+
+from data import csv_collator
+from data import ScaleImageAndLabel
+from data import build_dataset
+import losses
+import argparser
+from models import unet_model
+from metrics import Judge
+from metrics import make_metric_plots
+import utils
 
 
 # Parse command line arguments
