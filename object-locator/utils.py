@@ -319,7 +319,7 @@ def paint_circles(img, points, color='red', crosshair=False):
     img = np.moveaxis(img, 0, 2).copy()
     if not crosshair:
         for y, x in points:
-            img = cv2.circle(img, (x, y), 3, color, -1)
+            img = cv2.circle(img, (x, y), 1, color, -1)
     else:
         for y, x in points:
             img = cv2.drawMarker(img,
