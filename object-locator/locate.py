@@ -273,7 +273,7 @@ for batch_idx, (imgs, dictionaries) in tqdm(enumerate(testset_loader),
         centroids_wrt_orig = utils.cluster(mask, est_count_int,
                                            max_mask_pts=args.max_mask_pts)
 
-        # Save thresholded map to disk
+        # Save thresholded map to disks
         os.makedirs(os.path.join(args.out,
                                  'intermediate',
                                  'estimated_map_thresholded',

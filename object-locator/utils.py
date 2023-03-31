@@ -334,6 +334,69 @@ def nothing(*args, **kwargs):
     """ A useless function that does nothing at all. """
     pass
 
+def nms(conf_pred,x_pred,y_pred,threshold):
+
+    '''
+    Apply non-maxmimum suppression to avoid detecting the same signal multiple times
+    Args:
+        conf_map : Confidence scores for predictions, n x 1 array where n is the number of predictions
+        x_pred   : Unnormalized x location of all predictions
+        y_pred   : Unnormalized y location of all predictions
+
+    Output:
+        keep : array of shape m x 3, where m is the number of predictions after nms and 3 is conf, x, y location for each prediction
+    '''
+
+    # Sort predictions according to confidence (lowest to highest)
+    order = conf_pred.argsort()
+
+    # Initialize output array
+    conf_nms = []
+    x_nms    = []
+    y_nms    = []
+
+    while len(order) > 0:
+
+        # Take the point with the highest confidence and add it to the output
+        idx = order[-1]
+        conf_nms.append(conf_pred[idx])
+        x_nms.append(x_pred[idx])
+        y_nms.append(y_pred[idx])
+
+        # Remove that point from list of points
+        order = order[:-1]
+
+        # Check to make sure this wasn't the last point in order
+        if len(order) == 0:
+            break
+
+        # Order the x and y coordinates according to order
+        xorder = x_pred[order]
+        yorder = y_pred[order] 
+
+        # create one array of (x,y) locations for remaining points
+        points = np.stack((xorder,yorder),axis=0).transpose()
+        currentpoint = [x_pred[idx],y_pred[idx]]
+
+        # Calculate distances
+        dist = np.linalg.norm(points - currentpoint,axis=1)
+
+        # If distance between current point and remaining point is greater than threshold, keep it in order array. 
+        # If the distance is less than threshold (i.e. significant overlap), remove it.
+        mask = np.where(dist>threshold,True,False)
+        order = order[mask]
+
+    return conf_nms, x_nms, y_nms
+
+if __name__ == '__main__':
+
+    conf = np.random.rand(10)
+    xpred = np.array([0,0,1,2,5,7,9,6,3,7])
+    ypred = np.array([1,1.2,3,6,3,8,5,2,4,3])
+
+    threshold = 4
+
+    conf_nms, x_nms, y_nms = nms(conf,xpred,ypred,threshold)
 
 """
 Copyright &copyright © (c) 2019 The Board of Trustees of Purdue University and the Purdue Research Foundation.

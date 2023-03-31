@@ -111,7 +111,7 @@ def get_train_val_loaders(train_dir,
                                                                   seed=seed)]
         training_transforms += [RandomVerticalFlipImageAndLabel(p=0.5,
                                                                 seed=seed)]
-    training_transforms += [ScaleImageAndLabel(size=(height, width))]
+    # training_transforms += [ScaleImageAndLabel(size=(height, width))]
     training_transforms += [torchvision.transforms.ToTensor()]
     training_transforms += [torchvision.transforms.Normalize((0.5, 0.5, 0.5),
                                                              (0.5, 0.5, 0.5))]
@@ -119,7 +119,7 @@ def get_train_val_loaders(train_dir,
 
     # Data augmentation for validation
     validation_transforms = torchvision.transforms.Compose([
-                                ScaleImageAndLabel(size=(height, width)),
+                                # ScaleImageAndLabel(size=(height, width)),
                                 torchvision.transforms.ToTensor(),
                                 torchvision.transforms.\
                                     Normalize((0.5, 0.5, 0.5),

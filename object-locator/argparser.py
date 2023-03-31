@@ -197,6 +197,11 @@ def parse_command_args(training_or_testing):
                                    metavar='R',
                                    help="Detections at dist <= R to a GT point"
                                         "are considered True Positives.")
+        optional_args.add_argument('--tau',
+                                    type=strictly_positive,
+                                    default=-1,
+                                    metavar='tau',
+                                    help="Threshold for validation epochs")   
         optional_args.add_argument('--n-points',
                                    type=strictly_positive_int,
                                    default=None,
@@ -220,6 +225,16 @@ def parse_command_args(training_or_testing):
                                    help="Weight that will increase the "
                                         "importance of estimating the "
                                         "right number of points.")
+        optional_args.add_argument('--confweight',
+                                    type=strictly_positive,
+                                    default=1,
+                                    metavar ='CW',
+                                    help = "Weight that will scale the confidence loss")
+        optional_args.add_argument('--regweight',
+                                    type=strictly_positive,
+                                    default=1,
+                                    metavar='RW',
+                                    help="Weight that will scale the regression loss")
         parser._action_groups.append(optional_args)
         args = parser.parse_args()
 

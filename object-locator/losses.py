@@ -270,6 +270,115 @@ def generaliz_mean(tensor, dim, p=-9, keepdim=False):
     res= torch.mean((tensor + 1e-6)**p, dim, keepdim=keepdim)**(1./p)
     return res
 
+def create_target_states(conf_pred,loc_pred,target_locations):
+    """
+    Inputs:
+        conf_pred - tensor of shape (B,H,W) with values that are the confidence of each prediction
+        loc_pred  - tensor of shape (B,H,W,2) with values that are x (index 0) and y (index 1) locations of the predictions 
+        target_locations - List of Tensors of the Ground Truth points.
+                   Must be of size B as in prob_map.
+                   Each element in the list must be a 2D Tensor,
+                   where each row is the (x,y), i.e, (col,row) of a GT point.
+    Outputs: 
+        target_states - a tensor of shape (B,H,W) that has a 1 for every pixel (H,W) that has an object
+        target_locations_rsz - a tensor of shape (B,H,W,2) that has the normalized (0 to 1) location of the ground truth objects in the pixel
+    """
+    # Detach and move predictions to cpu since will be processing using numpy arrays which are CPU only
+    conf_pred_cpu = conf_pred.detach().cpu()
+    loc_pred_cpu  = loc_pred.detach().cpu()
+
+    # FloatTensor = torch.cuda.FloatTensor if conf_pred.is_cuda else torch.FloatTensor
+    FloatTensor = torch.FloatTensor
+
+    # Create a zero tensor that is the same size as the pred tensor (should be the size of the image)
+    target_states = torch.zeros(conf_pred_cpu.shape[0:3],requires_grad=False).type(FloatTensor) # BxHxW
+    target_locations_rsz = torch.zeros(loc_pred_cpu.shape,requires_grad=False).type(FloatTensor) # BxHxWx2
+
+    for b in range(conf_pred.shape[0]):
+
+        # Get indices for pixels that have an object in them and set value to 1
+        # x locations are columns (index 1)! y locations are rows (index 0)!
+        target_b_idx = target_locations[b].floor().int().numpy().transpose()
+        target_states[b,target_b_idx[1],target_b_idx[0]] = 1
+
+        # Add the normalized location (absolute location - which pixel it is) to tensor for MSELoss
+        x_gt = target_locations[b].transpose(0,1)[0] - target_b_idx[0].astype(np.float32)
+        y_gt = target_locations[b].transpose(0,1)[1] - target_b_idx[1].astype(np.float32)
+
+
+        target_locations_rsz[b,target_b_idx[1],target_b_idx[0],0] = x_gt 
+        target_locations_rsz[b,target_b_idx[1],target_b_idx[0],1] = y_gt 
+
+    return target_states, target_locations_rsz
+
+class FocalLoss(nn.Module):
+    def __init__(self):
+        super(FocalLoss, self).__init__()
+        self.alpha   = 0.25
+        self.gamma   = 2.0
+
+    def forward(self, classification, target_states):
+        """ Args:
+                classification (torch.Tensor): [B, sum(AHW)] logits
+                anchor_states  (torch.Tensor): [B, sum(AHW)]
+        """
+        p = torch.sigmoid(classification) # Head returns logits
+
+        positive_indices = torch.eq(target_states,  1)
+        ignore_indices   = torch.eq(target_states, -1)
+
+        num_positive_indices = positive_indices.sum()
+
+        # Focal loss
+        # - Apply alpha to anchors with IoU > 0.5, 1-alpha to IoU < 0.5
+        alpha = torch.where(positive_indices, self.alpha, 1 - self.alpha)
+        focal_weight = torch.where(positive_indices, 1 - p, p)
+        focal_weight = alpha * focal_weight.pow(self.gamma)
+
+        cls_loss = focal_weight * F.binary_cross_entropy_with_logits(
+                    classification, target_states, reduction='none')
+
+        # Ignore (zero loss) 0.4 < iou < 0.5
+        zeros    = torch.zeros_like(cls_loss)
+        cls_loss = torch.where(ignore_indices, zeros, cls_loss)
+        cls_loss = cls_loss.sum().div(torch.clamp(num_positive_indices, min=1.0))
+
+        return cls_loss
+
+class MSELoss_Custom(nn.Module):
+    def __init__(self):
+        super(MSELoss_Custom,self).__init__()
+        self.loss = torch.nn.MSELoss()
+    def forward(self, pred, target_locations, target_states):
+
+        '''
+        target_locations should be the same shape as the prediction tensor (B,W,H,2) where the 2 refers to (x,y) ground truth locations!
+        '''
+        
+        x_gt = target_locations[...,0]
+        y_gt = target_locations[...,1]
+
+        # Pass x,y locations through sigmoid to normalize between 0 and 1 for each pixel
+        x = torch.sigmoid(pred[...,0])
+        y = torch.sigmoid(pred[...,1])
+
+        # We only want to calculate the MSE loss for the predictions that have a ground truth in that pixel
+        target_states_bool = target_states>0
+
+        # Filter the tensors to just pixels that have a ground truth
+        x_gt_filtered = x_gt[target_states_bool]
+        y_gt_filtered = y_gt[target_states_bool]
+        x_filtered    = x[target_states_bool]
+        y_filtered    = y[target_states_bool]
+
+        # Stack tensors to make one filtered gt tensor and one filtered pred tensor
+        predxy = torch.stack((x_filtered,y_filtered),dim=1)
+        gtxy   = torch.stack((x_gt_filtered,y_gt_filtered),dim=1)
+
+        # Calculate MSE Loss
+        reg_loss = self.loss(predxy,gtxy)
+
+        return reg_loss
 
 """
 Copyright &copyright © (c) 2019 The Board of Trustees of Purdue University and the Purdue Research Foundation.

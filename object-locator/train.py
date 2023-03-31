@@ -55,7 +55,7 @@ from collections import OrderedDict
 # from .data import ScaleImageAndLabel
 
 import losses
-from models import unet_model
+from models import unet_model, unet_model_regress_px
 from metrics import Judge
 import logger
 import argparser
@@ -107,24 +107,25 @@ trainset_loader, valset_loader = \
 
 # Model
 with peter('Building network'):
-    model = unet_model.UNet(3, 1,
-                            height=args.height,
-                            width=args.width,
-                            known_n_points=args.n_points,
-                            device=device,
-                            ultrasmall=args.ultrasmallnet)
+    # model = unet_model.UNet(3, 1,
+    #                         height=args.height,
+    #                         width=args.width,
+    #                         known_n_points=args.n_points,
+    #                         device=device,
+    #                         ultrasmall=args.ultrasmallnet)
+    model = unet_model_regress_px.UNet_px(3,1,
+                                         height=args.height,
+                                         width=args.width,
+                                         device=device,
+                                         ultrasmall=args.ultrasmallnet)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f" with {ballpark(num_params)} trainable parameters. ", end='')
 model = nn.DataParallel(model)
 model.to(device)
 
 # Loss functions
-loss_regress = nn.SmoothL1Loss()
-loss_loc = losses.WeightedHausdorffDistance(resized_height=args.height,
-                                            resized_width=args.width,
-                                            p=args.p,
-                                            return_2_terms=True,
-                                            device=device)
+loss_regress = losses.MSELoss_Custom()
+loss_conf = losses.FocalLoss()
 
 # Optimization strategy
 if args.optimizer == 'sgd':
@@ -181,7 +182,7 @@ while epoch < args.epochs:
     iter_train = tqdm(trainset_loader,
                       desc=f'Epoch {epoch} ({len(trainset_loader.dataset)} images)')
 
-    # === TRAIN ===
+    # # === TRAIN ===
 
     # Set the module in training mode
     model.train()
@@ -208,15 +209,17 @@ while epoch < args.epochs:
 
         # One training step
         optimizer.zero_grad()
-        est_maps, est_counts = model.forward(imgs)
-        term1, term2 = loss_loc.forward(est_maps,
-                                        target_locations,
-                                        target_orig_sizes)
-        est_counts = est_counts.view(-1)
-        target_counts = target_counts.view(-1)
-        term3 = loss_regress.forward(est_counts, target_counts)
-        term3 *= args.lambdaa
-        loss = term1 + term2 + term3
+        est_maps = model.forward(imgs) #conf,x,y
+        conf_map = est_maps[:,:,:,0]
+        loc_map  = est_maps[:,:,:,1:]
+
+        # Calculate Loss
+        target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
+        target_states.to(device)
+        target_locations_rsz.to(device)
+        cls_loss = loss_conf.forward(conf_map,target_states)
+        reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
+        loss = args.confweight*cls_loss + args.regweight*reg_loss
         loss.backward()
         optimizer.step()
 
@@ -229,14 +232,14 @@ while epoch < args.epochs:
             tic_train = time.time()
 
             # Log training losses
-            log.train_losses(terms=[term1, term2, term3, loss / 3, running_avg.avg / 3],
-                             iteration_number=epoch +
-                             batch_idx/len(trainset_loader),
-                             terms_legends=['Term1',
-                                            'Term2',
-                                            'Term3*%s' % args.lambdaa,
-                                            'Sum/3',
-                                            'Sum/3 runn avg'])
+            # log.train_losses(terms=[term1, term2, term3, loss / 3, running_avg.avg / 3],
+            #                  iteration_number=epoch +
+            #                  batch_idx/len(trainset_loader),
+            #                  terms_legends=['Term1',
+            #                                 'Term2',
+            #                                 'Term3*%s' % args.lambdaa,
+            #                                 'Sum/3',
+            #                                 'Sum/3 runn avg'])
 
             # Resize images to original size
             orig_shape = target_orig_sizes[0].data.to(device_cpu).numpy().tolist()
@@ -244,14 +247,14 @@ while epoch < args.epochs:
                                                            output_shape=orig_shape,
                                                            mode='constant') + 1) / 2.0 * 255.0).\
                 astype(np.float32).transpose((2, 0, 1))
-            est_map_origsize = skimage.transform.resize(est_maps[0].data.unsqueeze(0).to(device_cpu).numpy().transpose((1, 2, 0)),
+            conf_map_origsize = skimage.transform.resize(conf_map[0].data.unsqueeze(0).to(device_cpu).numpy().transpose((1, 2, 0)),
                                                         output_shape=orig_shape,
                                                         mode='constant').\
                 astype(np.float32).transpose((2, 0, 1)).squeeze(0)
 
             # Overlay output on heatmap
             orig_img_w_heatmap_origsize = utils.overlay_heatmap(img=orig_img_origsize,
-                                                                map=est_map_origsize).\
+                                                                map=conf_map_origsize).\
                 astype(np.float32)
 
             # Send heatmap with circles at the labeled points to Visdom
@@ -308,9 +311,8 @@ while epoch < args.epochs:
     model.eval()
 
     judge = Judge(r=args.radius)
-    sum_term1 = 0
-    sum_term2 = 0
-    sum_term3 = 0
+    sum_regloss = 0
+    sum_clcloss = 0
     sum_loss = 0
     iter_val = tqdm(valset_loader,
                     desc=f'Validating Epoch {epoch} ({len(valset_loader.dataset)} images)')
@@ -350,24 +352,23 @@ while epoch < args.epochs:
 
         # Feed-forward
         with torch.no_grad():
-            est_maps, est_counts = model.forward(imgs)
+            est_maps = model.forward(imgs)
+            conf_map = est_maps[:,:,:,0]
+            loc_map  = est_maps[:,:,:,1:]
 
-        # Tensor -> int
-        est_count_int = int(round(est_counts.item()))
-
-        # The 3 terms
+        # Calculate Loss
         with torch.no_grad():
-            est_counts = est_counts.view(-1)
-            target_counts = target_counts.view(-1)
-            term1, term2 = loss_loc.forward(est_maps,
-                                            target_locations,
-                                            target_orig_sizes)
-            term3 = loss_regress.forward(est_counts, target_counts)
-            term3 *= args.lambdaa
-        sum_term1 += term1.item()
-        sum_term2 += term2.item()
-        sum_term3 += term3.item()
-        sum_loss += term1 + term2 + term3
+            target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
+            target_states.to(device)
+            target_locations_rsz.to(device)
+            cls_loss = loss_conf.forward(conf_map,target_states)
+            reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
+            sum_loss = args.confweight*cls_loss + args.regweight*reg_loss
+
+            # Add to running totals
+            sum_regloss += reg_loss
+            sum_clcloss += cls_loss
+            sum_loss    += sum_loss
 
         # Update progress bar
         loss_avg_this_epoch = sum_loss.item() / (batch_idx + 1)
@@ -376,20 +377,46 @@ while epoch < args.epochs:
 
         # The estimated map must be thresholed to obtain estimated points
         # BMM thresholding
-        est_map_numpy = est_maps[0, :, :].to(device_cpu).numpy()
+        est_map_numpy = conf_map[0, :, :].to(device_cpu).numpy()
         est_map_numpy_origsize = skimage.transform.resize(est_map_numpy,
                                                           output_shape=orig_shape,
                                                           mode='constant')
-        mask, _ = utils.threshold(est_map_numpy_origsize, tau=-1)
-        # Obtain centroids of the mask
-        centroids_wrt_orig = utils.cluster(mask, est_count_int,
-                                           max_mask_pts=args.max_mask_pts)
+
+        mask, _ = utils.threshold(est_map_numpy_origsize, tau=args.tau)
+
+        # Use threshold mask to filter predictions
+        binarymask = mask > 0
+        est_map_numpy_filtered = est_map_numpy_origsize[binarymask]
+        
+        # Unnormalize the xpred and ypred
+        xpred = torch.sigmoid(loc_map[0,:,:,0]).to(device_cpu).numpy()
+        ypred = torch.sigmoid(loc_map[0,:,:,1]).to(device_cpu).numpy()
+        x_unnorm = np.tile(np.arange(64),(64,1))
+        y_unnorm = np.tile(np.arange(64).reshape(64,1),(1,64))
+
+        xpred_unnorm = xpred + x_unnorm
+        ypred_unnorm = ypred + y_unnorm 
+
+        xpred_filtered  = xpred_unnorm[binarymask]
+        ypred_filtered  = ypred_unnorm[binarymask]
+
+        # Use NMS to eliminate redundant predictions
+        conf_nms, x_nms, y_nms = utils.nms(est_map_numpy_filtered,xpred_filtered,ypred_filtered,1)
+
+        # Once you have NMS predictions, use those to calculate validation metrics with ground truth
+        est_count_int = len(conf_nms)
+        centroids_wrt_orig = np.stack((x_nms,y_nms),axis = 0).transpose()
+
+        # # Obtain centroids of the mask
+        # centroids_wrt_orig = utils.cluster(mask, est_count_int,
+        #                                    max_mask_pts=args.max_mask_pts)
 
         # Validation metrics
         target_locations_wrt_orig = normalzr.unnormalize(target_locations_np,
                                                          orig_img_size=target_orig_size_np)
+        max_dist = math.sqrt(args.height**2 + args.width**2)
         judge.feed_points(centroids_wrt_orig, target_locations_wrt_orig,
-                          max_ahd=loss_loc.max_dist)
+                          max_ahd=max_dist)
         judge.feed_count(est_count_int, target_count_int)
 
         if time.time() > tic_val + args.log_interval:
@@ -400,7 +427,7 @@ while epoch < args.epochs:
                                                            output_shape=target_orig_size_np.tolist(),
                                                            mode='constant') + 1) / 2.0 * 255.0).\
                 astype(np.float32).transpose((2, 0, 1))
-            est_map_origsize = skimage.transform.resize(est_maps[0].to(device_cpu).unsqueeze(0).numpy().transpose((1, 2, 0)),
+            est_map_origsize = skimage.transform.resize(conf_map[0].to(device_cpu).unsqueeze(0).numpy().transpose((1, 2, 0)),
                                                         output_shape=orig_shape,
                                                         mode='constant').\
                 astype(np.float32).transpose((2, 0, 1)).squeeze(0)
@@ -436,16 +463,14 @@ while epoch < args.epochs:
                                   'and point estimations'],
                           window_ids=[8])
 
-    avg_term1_val = sum_term1 / len(valset_loader)
-    avg_term2_val = sum_term2 / len(valset_loader)
-    avg_term3_val = sum_term3 / len(valset_loader)
+    avg_term1_val = sum_regloss / len(valset_loader)
+    avg_term2_val = sum_clcloss / len(valset_loader)
     avg_loss_val = sum_loss / len(valset_loader)
 
     # Log validation metrics
     log.val_losses(terms=(avg_term1_val,
                           avg_term2_val,
-                          avg_term3_val,
-                          avg_loss_val / 3,
+                          avg_loss_val / 2,
                           judge.mahd,
                           judge.mae,
                           judge.rmse,
@@ -456,10 +481,9 @@ while epoch < args.epochs:
                           judge.precision,
                           judge.recall),
                    iteration_number=epoch,
-                   terms_legends=['Term 1',
-                                  'Term 2',
-                                  'Term3*%s' % args.lambdaa,
-                                  'Sum/3',
+                   terms_legends=['Reg Loss',
+                                  'Focal Loss',
+                                  'Total Loss/2',
                                   'AHD',
                                   'MAE',
                                   'RMSE',
