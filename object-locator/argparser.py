@@ -193,7 +193,7 @@ def parse_command_args(training_or_testing):
                                         "This maskes it run much slower!")
         optional_args.add_argument('--radius',
                                    type=strictly_positive,
-                                   default=2,
+                                   default=1,
                                    metavar='R',
                                    help="Detections at dist <= R to a GT point"
                                         "are considered True Positives.")

@@ -210,14 +210,14 @@ while epoch < args.epochs:
         # One training step
         optimizer.zero_grad()
         est_maps = model.forward(imgs) #conf,x,y
-        conf_map = est_maps[:,:,:,0]
-        loc_map  = est_maps[:,:,:,1:]
+        conf_map = est_maps[:,:,:,0] #logits
+        loc_map  = est_maps[:,:,:,1:] #logits
 
         # Calculate Loss
         target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
-        target_states.to(device)
-        target_locations_rsz.to(device)
-        cls_loss = loss_conf.forward(conf_map,target_states)
+        target_states = target_states.to(device)
+        target_locations_rsz = target_locations_rsz.to(device)
+        cls_loss = loss_conf.forward(conf_map,target_states,device)
         reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
         loss = args.confweight*cls_loss + args.regweight*reg_loss
         loss.backward()
@@ -232,14 +232,14 @@ while epoch < args.epochs:
             tic_train = time.time()
 
             # Log training losses
-            # log.train_losses(terms=[term1, term2, term3, loss / 3, running_avg.avg / 3],
-            #                  iteration_number=epoch +
-            #                  batch_idx/len(trainset_loader),
-            #                  terms_legends=['Term1',
-            #                                 'Term2',
-            #                                 'Term3*%s' % args.lambdaa,
-            #                                 'Sum/3',
-            #                                 'Sum/3 runn avg'])
+            log.train_losses(terms=[reg_loss, cls_loss, loss, loss / 3, running_avg.avg / 3],
+                             iteration_number=epoch +
+                             batch_idx/len(trainset_loader),
+                             terms_legends=['Regression Loss',
+                                            'Focal Loss',
+                                            'Loss*%s' % args.lambdaa,
+                                            'Sum/3',
+                                            'Sum/3 runn avg'])
 
             # Resize images to original size
             orig_shape = target_orig_sizes[0].data.to(device_cpu).numpy().tolist()
@@ -247,7 +247,7 @@ while epoch < args.epochs:
                                                            output_shape=orig_shape,
                                                            mode='constant') + 1) / 2.0 * 255.0).\
                 astype(np.float32).transpose((2, 0, 1))
-            conf_map_origsize = skimage.transform.resize(conf_map[0].data.unsqueeze(0).to(device_cpu).numpy().transpose((1, 2, 0)),
+            conf_map_origsize = skimage.transform.resize(torch.sigmoid(conf_map[0]).data.unsqueeze(0).to(device_cpu).numpy().transpose((1, 2, 0)),
                                                         output_shape=orig_shape,
                                                         mode='constant').\
                 astype(np.float32).transpose((2, 0, 1)).squeeze(0)
@@ -359,9 +359,9 @@ while epoch < args.epochs:
         # Calculate Loss
         with torch.no_grad():
             target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
-            target_states.to(device)
-            target_locations_rsz.to(device)
-            cls_loss = loss_conf.forward(conf_map,target_states)
+            target_states = target_states.to(device)
+            target_locations_rsz = target_locations_rsz.to(device)
+            cls_loss = loss_conf.forward(conf_map,target_states,device)
             reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
             sum_loss = args.confweight*cls_loss + args.regweight*reg_loss
 
@@ -377,7 +377,7 @@ while epoch < args.epochs:
 
         # The estimated map must be thresholed to obtain estimated points
         # BMM thresholding
-        est_map_numpy = conf_map[0, :, :].to(device_cpu).numpy()
+        est_map_numpy = torch.sigmoid(conf_map[0, :, :]).to(device_cpu).numpy()
         est_map_numpy_origsize = skimage.transform.resize(est_map_numpy,
                                                           output_shape=orig_shape,
                                                           mode='constant')

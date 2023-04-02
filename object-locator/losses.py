@@ -298,12 +298,12 @@ def create_target_states(conf_pred,loc_pred,target_locations):
 
         # Get indices for pixels that have an object in them and set value to 1
         # x locations are columns (index 1)! y locations are rows (index 0)!
-        target_b_idx = target_locations[b].floor().int().numpy().transpose()
+        target_b_idx = target_locations[b].detach().cpu().floor().int().numpy().transpose()
         target_states[b,target_b_idx[1],target_b_idx[0]] = 1
 
         # Add the normalized location (absolute location - which pixel it is) to tensor for MSELoss
-        x_gt = target_locations[b].transpose(0,1)[0] - target_b_idx[0].astype(np.float32)
-        y_gt = target_locations[b].transpose(0,1)[1] - target_b_idx[1].astype(np.float32)
+        x_gt = target_locations[b].detach().cpu().transpose(0,1)[0] - target_b_idx[0].astype(np.float32)
+        y_gt = target_locations[b].detach().cpu().transpose(0,1)[1] - target_b_idx[1].astype(np.float32)
 
 
         target_locations_rsz[b,target_b_idx[1],target_b_idx[0],0] = x_gt 
@@ -314,10 +314,10 @@ def create_target_states(conf_pred,loc_pred,target_locations):
 class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
-        self.alpha   = 0.25
+        self.alpha   = torch.tensor(0.25)
         self.gamma   = 2.0
 
-    def forward(self, classification, target_states):
+    def forward(self, classification, target_states,device):
         """ Args:
                 classification (torch.Tensor): [B, sum(AHW)] logits
                 anchor_states  (torch.Tensor): [B, sum(AHW)]
@@ -331,7 +331,7 @@ class FocalLoss(nn.Module):
 
         # Focal loss
         # - Apply alpha to anchors with IoU > 0.5, 1-alpha to IoU < 0.5
-        alpha = torch.where(positive_indices, self.alpha, 1 - self.alpha)
+        alpha = torch.where(positive_indices, self.alpha.to(device), 1 - self.alpha.to(device))
         focal_weight = torch.where(positive_indices, 1 - p, p)
         focal_weight = alpha * focal_weight.pow(self.gamma)
 
