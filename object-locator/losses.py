@@ -316,6 +316,7 @@ class FocalLoss(nn.Module):
         super(FocalLoss, self).__init__()
         self.alpha   = torch.tensor(0.25)
         self.gamma   = 2.0
+        self.pos_weight = torch.tensor(25)
 
     def forward(self, classification, target_states,device):
         """ Args:
@@ -336,7 +337,7 @@ class FocalLoss(nn.Module):
         focal_weight = alpha * focal_weight.pow(self.gamma)
 
         cls_loss = focal_weight * F.binary_cross_entropy_with_logits(
-                    classification, target_states, reduction='none')
+                    classification, target_states, reduction='none',pos_weight=self.pos_weight.to(device))
 
         # Ignore (zero loss) 0.4 < iou < 0.5
         zeros    = torch.zeros_like(cls_loss)

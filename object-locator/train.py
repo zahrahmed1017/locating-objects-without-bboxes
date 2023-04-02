@@ -139,6 +139,7 @@ elif args.optimizer == 'adam':
 
 start_epoch = 0
 lowest_mahd = np.infty
+lowest_mae  = np.infty
 
 # Restore saved checkpoint (model weights + epoch + optimizer state)
 if args.resume:
@@ -494,13 +495,16 @@ while epoch < args.epochs:
                                   f'r{args.radius}-Recall (%)'])
 
     # If this is the best epoch (in terms of validation error)
-    if judge.mahd < lowest_mahd:
+    # if judge.mahd < lowest_mahd:
+    if judge.mae < lowest_mae:
         # Keep the best model
-        lowest_mahd = judge.mahd
+        lowest_mae = judge.mae
+        # lowest_mahd = judge.mahd
         if args.save:
             torch.save({'epoch': epoch + 1,  # when resuming, we will start at the next epoch
                         'model': model.state_dict(),
-                        'mahd': lowest_mahd,
+                        # 'mahd': lowest_mahd,
+                        'mae': lowest_mae,
                         'optimizer': optimizer.state_dict(),
                         'n_points': args.n_points,
                         }, args.save)

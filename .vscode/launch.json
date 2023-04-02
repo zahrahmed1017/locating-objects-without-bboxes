@@ -39,7 +39,8 @@
                 "--save", "saved_model_psr_200ep_Threshold01_confweight01.ckpt",
                 "--confweight","1",
                 "--regweight","1",
-                "--tau","0.5"],
+                "--tau","0.5",
+                "--pos_weight","25"],
             // "args":[
             //     "--train-dir", "/home/zahraahmed/Documents/64x64/images_train_64",
             //     "--val-dir", "/home/zahraahmed/Documents/64x64/images_val_64", 

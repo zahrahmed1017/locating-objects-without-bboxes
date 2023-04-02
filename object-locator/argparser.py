@@ -235,6 +235,11 @@ def parse_command_args(training_or_testing):
                                     default=1,
                                     metavar='RW',
                                     help="Weight that will scale the regression loss")
+        optional_args.add_argument('--pos_weight',
+                                    type = strictly_positive,
+                                    default = 1,
+                                    metavar = 'PW',
+                                    help= "Weight for positive examples used in focal loss. Gives more importance to correctly classifying positive examples")
         parser._action_groups.append(optional_args)
         args = parser.parse_args()
 
