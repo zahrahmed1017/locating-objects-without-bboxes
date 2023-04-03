@@ -377,7 +377,6 @@ while epoch < args.epochs:
             avg_val_loss_this_epoch=f'{loss_avg_this_epoch:.1f}-----')
 
         # The estimated map must be thresholed to obtain estimated points
-        # BMM thresholding
         est_map_numpy = torch.sigmoid(conf_map[0, :, :]).to(device_cpu).numpy()
         est_map_numpy_origsize = skimage.transform.resize(est_map_numpy,
                                                           output_shape=orig_shape,

@@ -61,7 +61,7 @@ from data import ScaleImageAndLabel
 from data import build_dataset
 import losses
 import argparser
-from models import unet_model
+from models import unet_model, unet_model_regress_px
 from metrics import Judge
 from metrics import make_metric_plots
 import utils
@@ -105,10 +105,10 @@ testset_loader = data.DataLoader(testset,
 resized_size = np.array([args.height, args.width])
 
 # Loss function
-criterion_training = losses.WeightedHausdorffDistance(resized_height=args.height,
-                                                      resized_width=args.width,
-                                                      return_2_terms=True,
-                                                      device=device)
+# criterion_training = losses.WeightedHausdorffDistance(resized_height=args.height,
+#                                                       resized_width=args.width,
+#                                                       return_2_terms=True,
+#                                                       device=device)
 
 # Restore saved checkpoint (model weights)
 with peter("Loading checkpoint"):
@@ -120,29 +120,11 @@ with peter("Loading checkpoint"):
             checkpoint = torch.load(
                 args.model, map_location=lambda storage, loc: storage)
         # Model
-        if args.n_points is None:
-            if 'n_points' not in checkpoint:
-                # Model will also estimate # of points
-                model = unet_model.UNet(3, 1,
-                                        known_n_points=None,
-                                        height=args.height,
-                                        width=args.width,
-                                        ultrasmall=args.ultrasmallnet)
-
-            else:
-                # The checkpoint tells us the # of points to estimate
-                model = unet_model.UNet(3, 1,
-                                        known_n_points=checkpoint['n_points'],
-                                        height=args.height,
-                                        width=args.width,
-                                        ultrasmall=args.ultrasmallnet)
-        else:
-            # The user tells us the # of points to estimate
-            model = unet_model.UNet(3, 1,
-                                    known_n_points=args.n_points,
-                                    height=args.height,
-                                    width=args.width,
-                                    ultrasmall=args.ultrasmallnet)
+        model = unet_model_regress_px.UNet_px(3,1,
+                                         height=args.height,
+                                         width=args.width,
+                                         device=device,
+                                         ultrasmall=args.ultrasmallnet)
 
         # Parallelize
         if args.cuda:
@@ -232,14 +214,16 @@ for batch_idx, (imgs, dictionaries) in tqdm(enumerate(testset_loader),
 
     # Feed forward
     with torch.no_grad():
-        est_maps, est_count = model.forward(imgs)
+        est_maps = model.forward(imgs) #conf,x,y
+        conf_map = est_maps[:,:,:,0] #logits
+        loc_map  = est_maps[:,:,:,1:] #logits
 
     # Convert to original size
-    est_map_np = est_maps[0, :, :].to(device_cpu).numpy()
+    est_map_np = torch.sigmoid(conf_map[0, :, :]).to(device_cpu).numpy()
     est_map_np_origsize = \
         skimage.transform.resize(est_map_np,
-                                 output_shape=origsize,
-                                 mode='constant')
+                                output_shape=origsize,
+                                mode='constant')
     orig_img_np = imgs[0].to(device_cpu).squeeze().numpy()
     orig_img_np_origsize = ((skimage.transform.resize(orig_img_np.transpose((1, 2, 0)),
                                                    output_shape=origsize,
@@ -261,7 +245,7 @@ for batch_idx, (imgs, dictionaries) in tqdm(enumerate(testset_loader),
                 orig_img_w_heatmap_origsize.transpose((1, 2, 0))[:, :, ::-1])
 
     # Tensor -> int
-    est_count_int = int(round(est_count.item()))
+    # est_count_int = int(round(est_count.item()))
 
     # The estimated map must be thresholded to obtain estimated points
     for t, tau in enumerate(args.taus):
@@ -270,8 +254,30 @@ for batch_idx, (imgs, dictionaries) in tqdm(enumerate(testset_loader),
         else:
             mask, _, mix = utils.threshold(est_map_np_origsize, tau)
             bmm_tracker.feed(mix)
-        centroids_wrt_orig = utils.cluster(mask, est_count_int,
-                                           max_mask_pts=args.max_mask_pts)
+        # centroids_wrt_orig = utils.cluster(mask, est_count_int,
+        #                                    max_mask_pts=args.max_mask_pts)
+        # Use threshold mask to filter predictions
+        binarymask = mask > 0
+        est_map_numpy_filtered = est_map_np_origsize[binarymask]
+        
+        # Unnormalize the xpred and ypred
+        xpred = torch.sigmoid(loc_map[0,:,:,0]).to(device_cpu).numpy()
+        ypred = torch.sigmoid(loc_map[0,:,:,1]).to(device_cpu).numpy()
+        x_unnorm = np.tile(np.arange(64),(64,1))
+        y_unnorm = np.tile(np.arange(64).reshape(64,1),(1,64))
+
+        xpred_unnorm = xpred + x_unnorm
+        ypred_unnorm = ypred + y_unnorm 
+
+        xpred_filtered  = xpred_unnorm[binarymask]
+        ypred_filtered  = ypred_unnorm[binarymask]
+
+        # Use NMS to eliminate redundant predictions
+        conf_nms, x_nms, y_nms = utils.nms(est_map_numpy_filtered,xpred_filtered,ypred_filtered,1)
+
+        # Once you have NMS predictions, use those to calculate validation metrics with ground truth
+        est_count_int = len(conf_nms)
+        centroids_wrt_orig = np.stack((x_nms,y_nms),axis = 0).transpose()
 
         # Save thresholded map to disks
         os.makedirs(os.path.join(args.out,
@@ -330,8 +336,9 @@ for batch_idx, (imgs, dictionaries) in tqdm(enumerate(testset_loader),
             for judge in judges:
                 if judge.th != tau:
                     continue
+                max_dist = max_dist = math.sqrt(args.height**2 + args.width**2)
                 judge.feed_points(centroids_wrt_orig, target_locations_wrt_orig,
-                                  max_ahd=criterion_training.max_dist)
+                                  max_ahd=max_dist)
                 judge.feed_count(est_count_int, target_count)
 
         # Save a new line in the CSV corresonding to the resuls of this img
