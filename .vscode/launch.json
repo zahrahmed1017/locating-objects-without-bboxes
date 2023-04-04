@@ -36,7 +36,7 @@
             //     "--visdom-env", "mytrainingsession", 
             //     "--optim", "Adam", 
             //     "--lr","1e-4",
-            //     "--save", "saved_model_psr_200ep_Threshold01_confweight01.ckpt",
+            //     "--save", "saved_model_psr_200ep_Threshold01_confweight01_trial2.ckpt",
             //     "--confweight","1",
             //     "--regweight","1",
             //     "--tau","0.5",
@@ -56,12 +56,13 @@
             //     "--save", "Runs/Training/saved_model_5.ckpt"],
             "args": [
                 "--dataset", "/home/zahraahmed/Documents/64x64/images_val_64",
-                "--out", "Runs/Locating/PSR_Threshold01_PosWeight25",
-                "--model", "saved_model_psr_200ep_Threshold01_confweight01.ckpt",
+                "--out", "Runs/Locating/PSR_Threshold01_PosWeight25_trial2",
+                "--model", "saved_model_psr_200ep_Threshold01_confweight01_trial2.ckpt",
                 "--evaluate",
                 "--imgsize", "64x64",
                 "--radii","[0,0.2,0.5,0.8,1,1.5,2,5]",
-                "--taus", "[0,0.25,0.5,0.75,0.95,1]"],
+                "--taus", "[0,0.25,0.5,0.75,0.95,1]",
+                "--ultrasmallnet"],
             "purpose": ["debug-in-terminal"]
         }
     ]
