@@ -34,6 +34,7 @@ torch.set_default_dtype(torch.float32)
 
 
 def build_dataset(directory,
+                  train_val_test=None,
                   transforms=None,
                   max_dataset_size=float('inf'),
                   ignore_gt=False,
@@ -54,6 +55,7 @@ def build_dataset(directory,
     if any(fn.endswith('.csv') for fn in os.listdir(directory)) \
             or ignore_gt:
         dset = CSVDataset(directory=directory,
+                          train_val_test = train_val_test,
                           transforms=transforms,
                           max_dataset_size=max_dataset_size,
                           ignore_gt=ignore_gt,
@@ -128,6 +130,7 @@ def get_train_val_loaders(train_dir,
 
     # Training dataset
     trainset = build_dataset(directory=train_dir,
+                             train_val_test = 'train',
                              transforms=training_transforms,
                              max_dataset_size=max_trainset_size,
                              seed=seed)
@@ -160,6 +163,7 @@ def get_train_val_loaders(train_dir,
 
         else:
             valset = build_dataset(val_dir,
+                                   train_val_test = 'val',
                                    transforms=validation_transforms,
                                    max_dataset_size=max_valset_size,
                                    seed=seed)
@@ -199,6 +203,7 @@ def get_train_val_loaders(train_dir,
 class CSVDataset(torch.utils.data.Dataset):
     def __init__(self,
                  directory,
+                 train_val_test = None,
                  transforms=None,
                  max_dataset_size=float('inf'),
                  ignore_gt=False,
@@ -210,6 +215,7 @@ class CSVDataset(torch.utils.data.Dataset):
         It can contain as many columns as wanted, i.e, filename, count...
 
         :param directory: Directory with all the images and the CSV file.
+        :param train_test_val: String to describe if the CSV file is training, testing, or validation. If None, then will just take the only CSV file in the directory
         :param transform: Transform to be applied to each image.
         :param max_dataset_size: Only use the first N images in the directory.
         :param ignore_gt: Ignore the GT of the dataset,
@@ -223,10 +229,16 @@ class CSVDataset(torch.utils.data.Dataset):
         # Get groundtruth from CSV file
         listfiles = os.listdir(directory)
         csv_filename = None
-        for filename in listfiles:
-            if filename.endswith('.csv'):
-                csv_filename = filename
-                break
+        if train_val_test is None:
+            for filename in listfiles:
+                if filename.endswith('.csv'):
+                    csv_filename = filename
+                    break
+        else:
+            for filename in listfiles:
+                if train_val_test in filename and filename.endswith('.csv'):
+                    csv_filename = filename
+                    break
 
         # Ignore files that are not images
         listfiles = [f for f in listfiles
