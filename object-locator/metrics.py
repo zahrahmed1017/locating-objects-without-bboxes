@@ -66,6 +66,7 @@ class Judge():
         self._true_counts = []
 
         # Internal variables
+        self._l2error = 0
         self._sum_ahd = 0
         self._sum_e = 0
         self._sum_pe = 0
@@ -95,6 +96,8 @@ class Judge():
         else:
             nbr = sklearn.neighbors.NearestNeighbors(n_neighbors=1, metric='euclidean').fit(gt)
             dis, idx = nbr.kneighbors(pts)
+            valid_dis = dis <= self.r
+            l2error = np.sum(dis[valid_dis])
             detected_pts = (dis[:, 0] <= self.r).astype(np.uint8)
 
             nbr = sklearn.neighbors.NearestNeighbors(n_neighbors=1, metric='euclidean').fit(pts)
@@ -104,6 +107,7 @@ class Judge():
             tp = np.sum(detected_pts)
             fp = len(pts) - tp
             fn = len(gt) - np.sum(detected_gt)
+            self._l2error += l2error
 
         self.tp += tp
         self.fp += fp
@@ -112,6 +116,7 @@ class Judge():
         # Evaluation using the Averaged Hausdorff Distance
         ahd = losses.averaged_hausdorff_distance(pts, gt,
                                                  max_ahd=max_ahd)
+        
         self._sum_ahd += ahd
         self._n_calls_to_feed_points += 1
 
@@ -151,6 +156,11 @@ class Judge():
         self._sum_ape += ape
 
         self._n_calls_to_feed_count += 1
+
+    @property
+    def l2error(self):
+        """ Mean Position Error of True Positives """
+        return float(self._l2error / self.tp)
 
     @property
     def me(self):

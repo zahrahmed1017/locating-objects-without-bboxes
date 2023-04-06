@@ -369,7 +369,7 @@ if args.evaluate:
         # Output CSV where we will put
         # all our metrics as a function of r and the threshold
         df_metrics = pd.DataFrame(columns=['r', 'th',
-                                           'precision', 'recall', 'fscore', 'MAHD',
+                                           'precision', 'recall','l2error', 'fscore', 'MAHD',
                                            'MAPE', 'ME', 'MPE', 'MAE',
                                            'MSE', 'RMSE', 'r', 'R2'])
         df_metrics.index.name = 'idx'
@@ -380,6 +380,7 @@ if args.evaluate:
                                      judge.th,
                                      judge.precision,
                                      judge.recall,
+                                     judge.l2error,
                                      judge.fscore,
                                      judge.mahd,
                                      judge.mape,
@@ -391,7 +392,7 @@ if args.evaluate:
                                      judge.pearson_corr,
                                      judge.coeff_of_determination]],
                               columns=['r', 'th',
-                                       'precision', 'recall', 'fscore', 'MAHD',
+                                       'precision', 'recall','l2error', 'fscore', 'MAHD',
                                        'MAPE', 'ME', 'MPE', 'MAE',
                                        'MSE', 'RMSE', 'r', 'R2'],
                               index=[j])

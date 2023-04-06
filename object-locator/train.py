@@ -479,7 +479,8 @@ while epoch < args.epochs:
                           judge.pearson_corr \
                               if not np.isnan(judge.pearson_corr) else 1,
                           judge.precision,
-                          judge.recall),
+                          judge.recall,
+                          judge.l2error),
                    iteration_number=epoch,
                    terms_legends=['Reg Loss',
                                   'Focal Loss',
@@ -491,7 +492,8 @@ while epoch < args.epochs:
                                   'R^2',
                                   'r',
                                   f'r{args.radius}-Precision (%)',
-                                  f'r{args.radius}-Recall (%)'])
+                                  f'r{args.radius}-Recall (%)',
+                                  'Distance Error'])
 
     # If this is the best epoch (in terms of validation error)
     # if judge.mahd < lowest_mahd:
