@@ -160,7 +160,10 @@ class Judge():
     @property
     def l2error(self):
         """ Mean Position Error of True Positives """
-        return float(self._l2error / self.tp)
+        if self.tp != 0:
+            return float(self._l2error / self.tp)
+        else: 
+            return float(0)
 
     @property
     def me(self):
