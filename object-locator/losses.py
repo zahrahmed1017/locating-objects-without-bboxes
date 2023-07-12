@@ -318,7 +318,7 @@ class FocalLoss(nn.Module):
         self.gamma   = 2.0
         self.pos_weight = torch.tensor(25)
 
-    def forward(self, classification, target_states,device):
+    def forward(self, classification, target_states,device, mode):
         """ Args:
                 classification (torch.Tensor): [B, sum(AHW)] logits
                 anchor_states  (torch.Tensor): [B, sum(AHW)]
@@ -342,14 +342,18 @@ class FocalLoss(nn.Module):
         # Ignore (zero loss) 0.4 < iou < 0.5
         zeros    = torch.zeros_like(cls_loss)
         cls_loss = torch.where(ignore_indices, zeros, cls_loss)
-        cls_loss = cls_loss.sum().div(torch.clamp(num_positive_indices, min=1.0))
+
+        if mode == 'train':
+            cls_loss = cls_loss.sum().div(torch.clamp(num_positive_indices, min=1.0))
+        else:
+            cls_loss = cls_loss.sum()
 
         return cls_loss
 
 class MSELoss_Custom(nn.Module):
-    def __init__(self):
+    def __init__(self,reduction):
         super(MSELoss_Custom,self).__init__()
-        self.loss = torch.nn.MSELoss()
+        self.loss = torch.nn.MSELoss(reduction=reduction)
     def forward(self, pred, target_locations, target_states):
 
         '''

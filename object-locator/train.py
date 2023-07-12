@@ -125,6 +125,7 @@ model.to(device)
 
 # Loss functions
 loss_regress = losses.MSELoss_Custom()
+loss_regress_val = losses.MSELoss_Custom(reduction='none')
 loss_conf = losses.FocalLoss()
 
 # Optimization strategy
@@ -221,7 +222,7 @@ while epoch < args.epochs:
         target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
         target_states = target_states.to(device)
         target_locations_rsz = target_locations_rsz.to(device)
-        cls_loss = loss_conf.forward(conf_map,target_states,device)
+        cls_loss = loss_conf.forward(conf_map,target_states,device,'train')
         reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
         loss = args.confweight*cls_loss + args.regweight*reg_loss
         loss.backward()
@@ -319,7 +320,7 @@ while epoch < args.epochs:
     judge = Judge(r=args.radius)
     sum_regloss = 0
     sum_clcloss = 0
-    sum_loss = 0
+    sum_pos_samples = 0
     iter_val = tqdm(valset_loader,
                     desc=f'Validating Epoch {epoch} ({len(valset_loader.dataset)} images)')
     for batch_idx, (imgs, dictionaries) in enumerate(iter_val):
@@ -367,17 +368,21 @@ while epoch < args.epochs:
             target_states,target_locations_rsz = losses.create_target_states(conf_map,loc_map,target_locations)
             target_states = target_states.to(device)
             target_locations_rsz = target_locations_rsz.to(device)
-            cls_loss = loss_conf.forward(conf_map,target_states,device)
-            reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
+            positive_indices = torch.eq(target_states,  1)
+            num_positive_indices = positive_indices.sum()
+
+
+            cls_loss = loss_conf.forward(conf_map,target_states,device,'val')
+            reg_loss = loss_regress_val.forward(loc_map,target_locations_rsz,target_states)
             loss = args.confweight*cls_loss + args.regweight*reg_loss
 
             # Add to running totals
-            sum_regloss += reg_loss
-            sum_clcloss += cls_loss
-            sum_loss    += loss
+            sum_regloss     += reg_loss
+            sum_clcloss     += cls_loss
+            sum_pos_samples += num_positive_indices
 
         # Update progress bar
-        loss_avg_this_epoch = sum_loss.item() / (batch_idx + 1)
+        loss_avg_this_epoch = loss.item() / (batch_idx + 1)
         iter_val.set_postfix(
             avg_val_loss_this_epoch=f'{loss_avg_this_epoch:.1f}-----')
 
@@ -468,9 +473,13 @@ while epoch < args.epochs:
                                   'and point estimations'],
                           window_ids=[8])
 
-    avg_term1_val = sum_regloss / len(valset_loader)
-    avg_term2_val = sum_clcloss / len(valset_loader)
-    avg_loss_val = sum_loss / len(valset_loader)
+    # avg_term1_val = sum_regloss / len(valset_loader)
+    # avg_term2_val = sum_clcloss / len(valset_loader)
+    # avg_loss_val = sum_loss / len(valset_loader)
+
+    avg_term1_val = sum_regloss / sum_pos_samples
+    avg_term2_val = sum_clcloss / sum_pos_samples
+    avg_loss_val  = avg_term1_val + avg_term2_val
 
     validation_loss_output.append(avg_loss_val)
 
