@@ -171,6 +171,9 @@ running_avg = utils.RunningAverage(len(trainset_loader))
 
 normalzr = utils.Normalizer(args.height, args.width)
 
+training_loss_output = []
+validation_loss_output = []
+
 # Time at the last evaluation
 tic_train = -np.infty
 tic_val = -np.infty
@@ -227,6 +230,8 @@ while epoch < args.epochs:
         # Update progress bar
         running_avg.put(loss.item())
         iter_train.set_postfix(running_avg=f'{round(running_avg.avg/3, 1)}')
+
+        training_loss_output.append(loss)
 
         # Log training error
         if time.time() > tic_train + args.log_interval:
@@ -364,12 +369,12 @@ while epoch < args.epochs:
             target_locations_rsz = target_locations_rsz.to(device)
             cls_loss = loss_conf.forward(conf_map,target_states,device)
             reg_loss = loss_regress.forward(loc_map,target_locations_rsz,target_states)
-            sum_loss = args.confweight*cls_loss + args.regweight*reg_loss
+            loss = args.confweight*cls_loss + args.regweight*reg_loss
 
             # Add to running totals
             sum_regloss += reg_loss
             sum_clcloss += cls_loss
-            sum_loss    += sum_loss
+            sum_loss    += loss
 
         # Update progress bar
         loss_avg_this_epoch = sum_loss.item() / (batch_idx + 1)
@@ -467,6 +472,8 @@ while epoch < args.epochs:
     avg_term2_val = sum_clcloss / len(valset_loader)
     avg_loss_val = sum_loss / len(valset_loader)
 
+    validation_loss_output.append(avg_loss_val)
+
     # Log validation metrics
     log.val_losses(terms=(avg_term1_val,
                           avg_term2_val,
@@ -512,6 +519,15 @@ while epoch < args.epochs:
             print("Saved best checkpoint so far in %s " % args.save)
 
     epoch += 1
+
+# Assuming train_losses and val_losses are numpy arrays
+training_loss_output = np.array(training_loss_output)
+validation_loss_output = np.array(validation_loss_output)
+
+# Save the loss arrays to a file
+np.savetxt(args.save + '_train_losses.txt', training_loss_output)
+np.savetxt(args.save + '_val_losses.txt', validation_loss_output)
+
 
 
 """

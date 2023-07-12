@@ -88,8 +88,8 @@ try:
                                 ScaleImageAndLabel(size=(args.height,
                                                          args.width)),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, 0.5, 0.5),
-                                                     (0.5, 0.5, 0.5)),
+                                transforms.Normalize((0.5,0.5,0.5),
+                                                     (0.5,0.5,0.5)),
                             ]),
                             ignore_gt=not args.evaluate,
                             max_dataset_size=args.max_testset_size)
