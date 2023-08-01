@@ -119,7 +119,6 @@ if __name__ == '__main__':
     model = UNet_px(3, 1,
                     height=64,
                     width=64,
-                    known_n_points=None,
                     device=torch.device('cpu'),
                     ultrasmall=True)
     summary(model, (3, 64, 64))

@@ -371,7 +371,7 @@ if args.evaluate:
         df_metrics = pd.DataFrame(columns=['r', 'th',
                                            'precision', 'recall','l2error', 'fscore', 'MAHD',
                                            'MAPE', 'ME', 'MPE', 'MAE',
-                                           'MSE', 'RMSE', 'r', 'R2'])
+                                           'MSE', 'RMSE', 'r', 'R2','TP','FP','FN'])
         df_metrics.index.name = 'idx'
 
         for j, judge in enumerate(tqdm(judges)):
@@ -390,11 +390,14 @@ if args.evaluate:
                                      judge.mse,
                                      judge.rmse,
                                      judge.pearson_corr,
-                                     judge.coeff_of_determination]],
+                                     judge.coeff_of_determination,
+                                     judge.tp,
+                                     judge.fp,
+                                     judge.fn]],
                               columns=['r', 'th',
                                        'precision', 'recall','l2error', 'fscore', 'MAHD',
                                        'MAPE', 'ME', 'MPE', 'MAE',
-                                       'MSE', 'RMSE', 'r', 'R2'],
+                                       'MSE', 'RMSE', 'r', 'R2','TP','FP','FN'],
                               index=[j])
             df.index.name = 'idx'
             df_metrics = df_metrics.append(df)

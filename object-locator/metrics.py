@@ -106,7 +106,7 @@ class Judge():
 
             tp = np.sum(detected_pts)
             fp = len(pts) - tp
-            fn = len(gt) - np.sum(detected_gt)
+            fn = len(gt) - np.sum(detected_pts)
             self._l2error += l2error
 
         self.tp += tp
